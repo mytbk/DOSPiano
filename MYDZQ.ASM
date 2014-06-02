@@ -13,12 +13,28 @@ data segment
         msg db 'Press 1,2,3,4,5,6,7,8,ESC:',0dh,0ah,'$'
         keys db 'qwertyuasdfghjzxcvbnm'
         initval db ?
-        raisetune db ?
+        note dw 0
+        raisetune dw ?
         recording db 0
 ;;; a big buffer for recording
         datasize dw 0
         buffer db 200h dup(?)
-
+;;; The Graphical Interface
+        pianoui db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
+                db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
+                db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
+                db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
+                db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
+                db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
+                db 'aaaaaccccceeeeefffffhhhhhjjjjjlllll', 0
+                db 'aaaaaccccceeeeefffffhhhhhjjjjjlllll', 0
+                db 'aaaaaccccceeeeefffffhhhhhjjjjjlllll', 0
+                db 'aaaaaccccceeeeefffffhhhhhjjjjjlllll', 0
+        db 0ffh
+        colors db 01111111b, 00001000b, 01111111b, 00001000b, 01111111b, 01111111b
+                db 00001000b, 01111111b, 00001000b, 01111111b, 00001000b, 01111111b
+        showcode db 0
+        
 data ends
 
 stack segment stack
@@ -28,17 +44,20 @@ stack ends
 
 code segment
         assume cs:code,ds:data
-        extrn _raisehalf: near
         extrn _transkey: near
+        extrn _get_showcode: near
 start:  mov ax,data
 	mov ds,ax
         mov es,ax
         mov ax, stack
         mov ss, ax
         mov sp, sttop
+        call graphic_init
+        mov dx, 0510h
+        call showui
 
-sss:    mov ah,7
-	int 21h              ;从键盘接收字符,不回显
+sss:    mov ah,0
+	int 16h              ; getkey
 
 	cmp al, 1bh
         jne TREC             ; ESC=>exit
@@ -78,7 +97,7 @@ lowerletter:
         mov di, offset keys
         mov cx, 21
         repnz scasb
-        jnz sss
+        jnz sss                 ; invalid key
         sub di, offset keys
         dec di               ; index = di-keys-1
         push di
@@ -90,6 +109,7 @@ lowerletter:
         cmp ax, 16  ;; ax>=16 => high tune
         jl mediumlow
         and al, 00000111b
+        mov note, al
         mov bx, offset time
         xlat
         shr al, 1
@@ -98,11 +118,13 @@ mediumlow:
         cmp ax, 8  ;; ax>=8 => medium tune
         jl lowt
         and al, 00000111b
+        mov note, al
         mov bx, offset time
         xlat
         jmp tune
 lowt:
         and al, 00000111b
+        mov note, al
         mov bx, offset time
         xlat
         shl al, 1
@@ -115,6 +137,14 @@ tune:
 
 process:
         mov initval, al
+        ;; show ui
+        push raisetune
+        push note
+        call _get_showcode
+        mov showcode, al
+        mov dx, 0510h
+        call showui
+        
         mov cx,60             ;取60次32个正弦波数据
 ddd:	mov si,0
 lll:	mov al,data1[si]     ;取正弦波数据
@@ -165,6 +195,79 @@ raisehalf proc near
         ret
 raisehalf endp
 
+graphic_init proc near
+        xor ah, ah
+        mov al, 3
+        int 10h
+        mov ah, 6
+        xor al, al
+        mov bh, 00100000b
+        mov ch, 0
+        mov cl, 0
+        mov dh, 24
+        mov dl, 79
+        int 10h
+        ret
+graphic_init endp
+        
+showui proc near
+;;; show code stored in mem
+;;; dh, dl: line, column
+
+;;; initialize cursor
+        push ax
+        push bx
+        push cx
+        push si
+
+        mov si, offset pianoui
+        mov cx, 1
+        push dx
+show_loop:
+        cmp byte ptr [si], 0ffh
+        jz show_end
+        cmp byte ptr [si], 0
+        jnz show_cont
+        pop dx
+        inc dh
+        push dx
+        inc si
+        jmp show_loop
+show_cont:
+        ;; set cursor
+        xor bx, bx
+        mov ah, 2
+        int 10h
+
+        mov al, [si]
+        cmp byte ptr showcode, al
+        jz set_color
+        sub al, 'a'
+        mov bx, offset colors
+        xlat
+        mov bl, al
+        jmp show_sp
+set_color:
+        mov bl, 00011000b
+show_sp:
+        mov ah, 9
+        mov al, ' '
+        xor bh, bh
+        int 10h
+
+        inc dl
+        inc si
+        jmp show_loop
+show_end:
+        pop dx
+        pop si
+        pop cx
+        pop bx
+        pop ax
+        ret
+showui endp
+        
+        
 savetofile proc near
         ret
 savetofile endp

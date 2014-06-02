@@ -24,11 +24,23 @@ int transkey(unsigned int index)
     return note|tune;
 }
 
-#define HALF 1.0594631
-
-unsigned int raisehalf(unsigned int splits)
+int get_showcode(unsigned int note, int raise)
 {
-    unsigned long ss = splits*10000;
-    ss /= 10595;
-    return ss;
+    int idx;
+    if (note<=2){
+        idx = note*2;
+    }
+    else{
+        idx = note*2-1;
+    }
+    idx += raise;
+    if (idx>=12){
+        idx -= 12;
+    }
+    return idx+'a';
 }
+
+
+
+
+
