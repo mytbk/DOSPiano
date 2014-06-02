@@ -18,12 +18,14 @@ data segment
         msg db 'Press 1,2,3,4,5,6,7,8,ESC:',0dh,0ah,'$'
         keys db 'qwertyuasdfghjzxcvbnm'
         initval db ?
+        tmpval db ?
         note dw 0
         raisetune dw ?
         recording db 0
 ;;; a big buffer for recording
+        BUFSIZE equ 200h
         datasize dw 0
-        buffer db 200h dup(?)
+        buffer db BUFSIZE dup(?)
 ;;; The Graphical Interface
         pianoui db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
                 db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
@@ -87,13 +89,22 @@ TPLAY:
         jmp sss
 TSPACE:
         cmp al, ' '
-        jne OTHERKEY
+        jne TBACKSP
         cmp recording, 1
         jne sss                 ; ignore it
         mov bx, datasize
         mov buffer[bx], 0
         inc datasize
         jmp sss
+TBACKSP:
+        cmp al, 08              ; backspace
+        jne OTHERKEY
+        cmp datasize, 0
+        js nodec
+        dec datasize            ; sub datasize by 1 regardless of the state
+nodec:
+        jmp sss
+        
 OTHERKEY:
         mov raisetune, 0
         cmp al, 'A'
@@ -114,8 +125,10 @@ lowerletter:
         call _transkey
         add sp, 2
         cmp ax, -1
-        jz sss
+        jnz proctune
+        jmp sss
 
+proctune:       
         cmp ax, 16  ;; ax>=16 => high tune
         jl mediumlow
         and al, 00000111b
@@ -162,8 +175,23 @@ process:
         mov buffer[bx], al
         inc datasize
 norec:
+        mov al, initval
+        mov tmpval, al
+        call playtune
+	jmp sss
         
-        mov cx,60             ;取60次32个正弦波数据
+exit:
+        mov ah,4ch
+	int 21h
+
+playtune proc near
+;;; play sound according to the init value of 8253
+;;; initval store in tmpval
+        push cx
+        push si
+        push dx
+        
+        mov cx,60               ; 60 waves
 ddd:	mov si,0
 lll:	mov al,data1[si]     ;取正弦波数据
         mov dx,0e490h
@@ -173,12 +201,15 @@ lll:	mov al,data1[si]     ;取正弦波数据
 	cmp si,32            ;是否取完32个数据
 	jl lll               ;若没有,则继续
 	loop ddd             ;总循环次数60是否完,没有,则继续
-	jmp sss
+
+        pop dx
+        pop si
+        pop cx
+        ret
+playtune endp
         
-exit:
-        mov ah,4ch
-	int 21h
-delay proc near              ;延时子程序
+delay proc near
+;;; delay and play according to tmpval
 ccc:    ;mov bx,offset time
         mov dx,0e483h        ;置8253通道0为方式0工作
 	mov al,10h
@@ -186,7 +217,7 @@ ccc:    ;mov bx,offset time
         mov dx,0e48bh         ;设8255A口输入
 	mov al,90h            ; a in, method 0
 	out dx,al
-	mov al,initval
+	mov al,tmpval
         mov dx,0e480h
 	out dx,al            ; output the initial value to 8253
 kkk:    mov dx,0e488h
@@ -286,6 +317,17 @@ show_end:
 showui endp
         
 playaudio proc near
+        mov cx, datasize
+        cmp cx, BUFSIZE
+        ja pret
+        mov bx, offset buffer
+playloop:
+        mov al, [bx]
+        mov tmpval, al
+        call playtune
+        inc bx
+        loop playloop
+pret:   
         ret
 playaudio endp
         
