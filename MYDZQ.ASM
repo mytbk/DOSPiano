@@ -4,7 +4,9 @@ RECKEY equ 12h
 SAVEKEY equ 13h
 PLAYKEY equ 10h
 LOADKEY equ 0ch
-
+P8255A_CTL equ 0e48bh
+P8255A_A equ 0e488h
+P8255A_B equ 0e489h
         
 data segment
 ;;; data1: sine wave
@@ -82,12 +84,14 @@ TREC:
         jne TSAVE
         mov recording, 1
         mov datasize, 0
+        call ledon
         jmp sss
 TSAVE:
         cmp al, SAVEKEY
         jne TLOAD
         mov recording, 0
         call savetofile
+        call ledoff
         jmp sss
 TLOAD:
         cmp al, LOADKEY
@@ -228,13 +232,13 @@ ccc:    ;mov bx,offset time
         mov dx,0e483h        ;置8253通道0为方式0工作
 	mov al,10h
 	out dx,al
-        mov dx,0e48bh         ;设8255A口输入
+        mov dx, P8255A_CTL
 	mov al,90h            ; a in, method 0
 	out dx,al
 	mov al,tmpval
         mov dx,0e480h
 	out dx,al            ; output the initial value to 8253
-kkk:    mov dx,0e488h
+kkk:    mov dx, P8255A_A
 	in  al,dx            ;从8255A口读一字节
 	test al,01           ;判PA0口是否为1
 	jz  kkk              ;若不为1,则转KKK
@@ -404,6 +408,26 @@ getfilename proc near
         mov byte ptr [bx], 0
         ret
 getfilename endp
+
+ledon proc near
+        mov dx, P8255A_CTL
+        mov al, 10000000b       ; method 0, b out
+        out dx, al
+        mov dx, P8255A_B
+        mov al, 1
+        out dx, al
+        ret
+ledon endp
+
+ledoff proc near
+        mov dx, P8255A_CTL
+        mov al, 10000000b       ; method 0, b out
+        out dx, al
+        mov dx, P8255A_B
+        mov al, 0
+        out dx, al
+        ret
+ledoff endp
         
 code   ends
         end  start
