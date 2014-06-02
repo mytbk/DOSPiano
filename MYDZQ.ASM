@@ -1,5 +1,10 @@
+;;; Record:C-R, Play:C-P, Save:C-S, Load:C-L
+        
 RECKEY equ 12h
 SAVEKEY equ 13h
+PLAYKEY equ 10h
+LOADKEY equ 0ch
+
         
 data segment
 ;;; data1: sine wave
@@ -71,20 +76,25 @@ TREC:
         jmp sss
 TSAVE:
         cmp al, SAVEKEY
-        jne TSPACE
+        jne TPLAY
         mov recording, 0
         call savetofile
         jmp sss
+TPLAY:
+        cmp al, PLAYKEY
+        jne TSPACE
+        call playaudio
+        jmp sss
 TSPACE:
         cmp al, ' '
-        jne ttt
+        jne OTHERKEY
         cmp recording, 1
         jne sss                 ; ignore it
         mov bx, datasize
         mov buffer[bx], 0
         inc datasize
         jmp sss
-ttt:
+OTHERKEY:
         mov raisetune, 0
         cmp al, 'A'
         jl sss
@@ -144,6 +154,14 @@ process:
         mov showcode, al
         mov dx, 0510h
         call showui
+        ;; record
+        cmp recording, 1
+        jne norec
+        mov al, initval
+        mov bx, datasize
+        mov buffer[bx], al
+        inc datasize
+norec:
         
         mov cx,60             ;取60次32个正弦波数据
 ddd:	mov si,0
@@ -267,6 +285,9 @@ show_end:
         ret
 showui endp
         
+playaudio proc near
+        ret
+playaudio endp
         
 savetofile proc near
         ret
