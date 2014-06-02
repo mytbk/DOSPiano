@@ -84,9 +84,14 @@ TREC:
         jmp sss
 TSAVE:
         cmp al, SAVEKEY
-        jne TPLAY
+        jne TLOAD
         mov recording, 0
         call savetofile
+        jmp sss
+TLOAD:
+        cmp al, LOADKEY
+        jne TPLAY
+        call loadfile
         jmp sss
 TPLAY:
         cmp al, PLAYKEY
@@ -124,7 +129,9 @@ lowerletter:
         mov di, offset keys
         mov cx, 21
         repnz scasb
-        jnz sss                 ; invalid key
+        jz trans                ; key found
+        jmp sss
+trans:  
         sub di, offset keys
         dec di               ; index = di-keys-1
         push di
@@ -358,6 +365,26 @@ savetofile proc near
         ret
 savetofile endp
 
+loadfile proc near
+        call getfilename
+        ;; open file
+        mov ah, 3dh
+        mov dx, offset filename
+        mov al, 0
+        int 21h
+        mov handle, ax
+        ;; read
+        mov dx, offset datasize
+        mov bx, ax
+        mov ah, 3fh
+        mov cx, BUFSIZE
+        int 21h
+        ;; close
+        mov ah, 3fh
+        int 21h
+        ret
+loadfile endp
+        
 getfilename proc near
         mov ah, 2
         mov bh, 0
