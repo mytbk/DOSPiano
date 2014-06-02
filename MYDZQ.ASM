@@ -81,6 +81,7 @@ TREC:
         cmp al, RECKEY
         jne TSAVE
         mov recording, 1
+        mov datasize, 0
         jmp sss
 TSAVE:
         cmp al, SAVEKEY
