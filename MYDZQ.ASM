@@ -26,6 +26,12 @@ data segment
         BUFSIZE equ 200h
         datasize dw 0
         buffer db BUFSIZE dup(?)
+;;; File param
+        fnmax db 0ffh
+        fnlen db ?
+        filename db 0ffh dup (?)
+        handle dw ?
+        prompt db 'Filename: ', '$'
 ;;; The Graphical Interface
         pianoui db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
                 db 'aaabbbbcddddeeefffgggghiiiijkkkklll', 0
@@ -332,8 +338,44 @@ pret:
 playaudio endp
         
 savetofile proc near
+        call getfilename
+        ;; create file
+        mov ah, 3ch
+        xor cx, cx
+        mov dx, offset filename
+        int 21h
+        mov handle, ax
+        ;; save data
+        mov cx, datasize
+        add cx, 2
+        mov dx, offset datasize
+        mov bx, handle
+        mov ah, 40h
+        int 21h
+        ;; close file
+        mov ah, 3eh
+        int 21h
         ret
 savetofile endp
+
+getfilename proc near
+        mov ah, 2
+        mov bh, 0
+        mov dx, 1410h
+        int 10h
+        mov dx, offset prompt
+        mov ah, 9
+        int 21h
+        mov dx, offset fnmax
+        mov ah, 0ah
+        int 21h
+        mov bx, offset filename
+        mov al, fnlen
+        cbw
+        add bx, ax
+        mov byte ptr [bx], 0
+        ret
+getfilename endp
         
 code   ends
         end  start
